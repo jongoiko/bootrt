@@ -108,7 +108,7 @@ loop_columns:
     idiv    cx
     mov     cx, VIEWPORT_WIDTH >> FRAC_BITS
     imul    cx
-    add     es:[0xFA06], ax
+    add     es:[VECTOR_ADDRESS(1)], ax
 
     ; Translate pixel row to vertical component relative to the viewport's
     ; upper left corner
@@ -118,7 +118,7 @@ loop_columns:
     idiv    cx
     mov     cx, VIEWPORT_HEIGHT >> FRAC_BITS
     imul    cx
-    sub     es:[0xFA08], ax
+    sub     es:[VECTOR_ADDRESS(1) + 2], ax
 
     ; Subtract origin from resulting vector to obtain the ray's direction (b)
     mov     bx, VECTOR_ADDRESS(0)
