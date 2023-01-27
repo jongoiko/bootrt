@@ -29,6 +29,10 @@ FRAC_BITS:          equ     7
 ; Macro for fixed-points literals
 %define     FP_LIT(int, frac)   ((int) << FRAC_BITS + (frac))
 
+; Vectors are stored in the same segment as video memory and numbered starting
+; at 0
+%define     VECTOR_ADDRESS(n)   (IMG_SIZE + n * VECTOR_SIZE)
+
 ; Origin/Position of the camera
 CAMERA_X:           equ     0
 CAMERA_Y:           equ     0
@@ -56,7 +60,7 @@ SPHERE_COLOR:       equ     0x28
 BACKGROUND_COLOR:   equ     0x11
 
 %macro store_vector 4
-    mov     di, IMG_SIZE + %1 * VECTOR_SIZE
+    mov     di, VECTOR_ADDRESS(%1)
     mov     word es:[di], %2
     mov     word es:[di + 2], %3
     mov     word es:[di + 4], %4
@@ -76,7 +80,8 @@ start:
     store_vector 2, SPHERE_CENTER_X, SPHERE_CENTER_Y, SPHERE_CENTER_Z
 
     ; Vector 2 <- OC: vector from the origin to the sphere's center
-    mov     ax, 0x0200
+    mov     bx, VECTOR_ADDRESS(0)
+    mov     bp, VECTOR_ADDRESS(2)
     call    vector_sub
 
     ; Row and column numbers are stored in fixed-point format and only
@@ -116,7 +121,8 @@ loop_columns:
     sub     es:[0xFA08], ax
 
     ; Subtract origin from resulting vector to obtain the ray's direction (b)
-    mov     ax, 0x0100
+    mov     bx, VECTOR_ADDRESS(0)
+    mov     bp, VECTOR_ADDRESS(1)
     call    vector_sub
 
     ; Obtain color intersecting with the outgoing ray. The ray can be
@@ -130,7 +136,8 @@ loop_columns:
     ; need to deal with 32-bit multiplication)
 
     ; AX <- B = 2 * dot(OC, b)
-    mov     ax, 0x0201
+    mov     bx, VECTOR_ADDRESS(2)
+    mov     bp, VECTOR_ADDRESS(1)
     call    vector_dot
     shl     dx, 1
     shl     ax, 1
@@ -140,14 +147,16 @@ loop_columns:
     push    ax
 
     ; AX <- A = b^2
-    mov     ax, 0x0101
+    mov     bx, VECTOR_ADDRESS(1)
+    mov     bp, bx
     call    vector_dot
     mov     al, ah
     mov     ah, dl
     push    ax
 
     ; AX <- C = dot(OC, OC) - radius^2
-    mov     ax, 0x0202
+    mov     bx, VECTOR_ADDRESS(2)
+    mov     bp, bx
     call    vector_dot
     sub     ax, ((SPHERE_RADIUS * SPHERE_RADIUS) >> FRAC_BITS) & 0xFFFF
     sbb     dx, (((SPHERE_RADIUS * SPHERE_RADIUS) >> FRAC_BITS) & 0xFFFF0000) >> 16
@@ -204,29 +213,9 @@ next_row:
 end:
     jmp     end
 
-;   get_vector_addresses
-; Loads to BP, BX the addresses of vectors at AH and AL respectively (relative
-; to ES). Destroys the values of AX, CX and DX
-get_vector_addresses:
-    mov     cx, ax
-    mov     ax, VECTOR_SIZE
-    xor     bx, bx
-    mov     bl, cl
-    mul     bx
-    add     ax, IMG_SIZE
-    push    ax
-    mov     ax, VECTOR_SIZE
-    mov     bl, ch
-    mul     bx
-    add     ax, IMG_SIZE
-    mov     bp, ax
-    pop     bx
-    ret
-
 ;   vector_add
-; Adds vector AL to vector AH. Destroys the values of AX, BX, CX and BP
+; Adds vector at address BX to vector at address BP. Destroys the value of CX
 vector_add:
-    call    get_vector_addresses
     mov     cx, word es:[bx]
     add     es:[bp], cx
     mov     cx, word es:[bx + 2]
@@ -236,9 +225,9 @@ vector_add:
     ret
 
 ;   vector_sub
-; Subtracts vector AL from vector AH. Destroys the values of AX, BX, CX and BP
+; Subtracts vector at address BX from vector at address BP. Destroys the value
+; of CX
 vector_sub:
-    call    get_vector_addresses
     mov     cx, word es:[bx]
     sub     es:[bp], cx
     mov     cx, word es:[bx + 2]
@@ -248,10 +237,9 @@ vector_sub:
     ret
 
 ;   vector_dot
-; Loads to DX:AX the dot product of vectors AL and AH. Destroys the values of
-; BX, CX and BP
+; Loads to DX:AX the dot product of vectors at addresses BX and BP. Destroys
+; the value of CX
 vector_dot:
-    call    get_vector_addresses
     mov     cx, word es:[bx]
     mov     ax, word es:[bp]
     imul    cx
