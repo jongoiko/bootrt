@@ -243,29 +243,27 @@ vector_dot:
     mov     cx, word es:[bx]
     mov     ax, word es:[bp]
     imul    cx
-    call    rescale_dx_ax
     push    dx
     push    ax
 
     mov     cx, word es:[bx + 2]
     mov     ax, word es:[bp + 2]
     imul    cx
-    call    rescale_dx_ax
     push    dx
     push    ax
 
     mov     cx, word es:[bx + 4]
     mov     ax, word es:[bp + 4]
     imul    cx
+    pop     cx
+    add     ax, cx
+    pop     cx
+    adc     dx, cx
+    pop     cx
+    add     ax, cx
+    pop     cx
+    adc     dx, cx
     call    rescale_dx_ax
-    pop     cx
-    add     ax, cx
-    pop     cx
-    adc     dx, cx
-    pop     cx
-    add     ax, cx
-    pop     cx
-    adc     dx, cx
     ret
 
 ;   rescale_dx_ax
