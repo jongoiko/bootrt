@@ -213,17 +213,6 @@ next_row:
 end:
     jmp     end
 
-;   vector_add
-; Adds vector at address BX to vector at address BP. Destroys the value of CX
-vector_add:
-    mov     cx, word es:[bx]
-    add     es:[bp], cx
-    mov     cx, word es:[bx + 2]
-    add     es:[bp + 2], cx
-    mov     cx, word es:[bx + 4]
-    add     es:[bp + 4], cx
-    ret
-
 ;   vector_sub
 ; Subtracts vector at address BX from vector at address BP. Destroys the value
 ; of CX
