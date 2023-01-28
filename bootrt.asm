@@ -80,9 +80,10 @@ start:
     store_vector 2, SPHERE_CENTER_X, SPHERE_CENTER_Y, SPHERE_CENTER_Z
 
     ; Vector 2 <- OC: vector from the origin to the sphere's center
+    mov     ax, vector_sub
     mov     bx, VECTOR_ADDRESS(0)
     mov     bp, VECTOR_ADDRESS(2)
-    call    vector_sub
+    call    vector_op
 
     ; Row and column numbers are stored in fixed-point format and only
     ; converted to integers to calculate pixel addresses
@@ -121,9 +122,10 @@ loop_columns:
     sub     es:[VECTOR_ADDRESS(1) + 2], ax
 
     ; Subtract origin from resulting vector to obtain the ray's direction (b)
+    mov     ax, vector_sub
     mov     bx, VECTOR_ADDRESS(0)
     mov     bp, VECTOR_ADDRESS(1)
-    call    vector_sub
+    call    vector_op
 
     ; Obtain color intersecting with the outgoing ray. The ray can be
     ; represented as
@@ -131,43 +133,33 @@ loop_columns:
     ; The ray's origin is stored in vector 0 and its direction vector is stored
     ; in vector 1
 
-    ; A, B and C are shifted to the right by 8 bits to prevent later
-    ; calculations from resulting in very large numbers (and thus saving the
-    ; need to deal with 32-bit multiplication)
-
-    ; AX <- B = 2 * dot(OC, b)
+    ; DX <- B = 2 * dot(OC, b)
+    mov     ax, vector_dot
     mov     bx, VECTOR_ADDRESS(2)
     mov     bp, VECTOR_ADDRESS(1)
-    call    vector_dot
+    call    vector_op
     shl     dx, 1
-    shl     ax, 1
-    adc     dx, 0
-    mov     al, ah
-    mov     ah, dl
-    push    ax
+    push    dx
 
-    ; AX <- A = b^2
+    ; DX <- A = b^2
+    mov     ax, vector_dot
     mov     bx, VECTOR_ADDRESS(1)
     mov     bp, bx
-    call    vector_dot
-    mov     al, ah
-    mov     ah, dl
-    push    ax
+    call    vector_op
+    push    dx
 
-    ; AX <- C = dot(OC, OC) - radius^2
+    ; DX <- C = dot(OC, OC) - radius^2
+    mov     ax, vector_dot
     mov     bx, VECTOR_ADDRESS(2)
     mov     bp, bx
-    call    vector_dot
-    sub     ax, ((SPHERE_RADIUS * SPHERE_RADIUS) >> FRAC_BITS) & 0xFFFF
-    sbb     dx, (((SPHERE_RADIUS * SPHERE_RADIUS) >> FRAC_BITS) & 0xFFFF0000) >> 16
-    mov     al, ah
-    mov     ah, dl
+    call    vector_op
+    sub     dx, (SPHERE_RADIUS * SPHERE_RADIUS) >> (FRAC_BITS + 8)
 
     ; BP:BX <- 4 * A * C; A and C have each been multiplied by 2 already
+    shl     dx, 1
+    pop     ax
     shl     ax, 1
-    pop     cx
-    shl     cx, 1
-    imul    cx
+    imul    dx
     call    rescale_dx_ax
     mov     bp, dx
     mov     bx, ax
@@ -214,45 +206,47 @@ end:
     jmp     end
 
 ;   vector_sub
-; Subtracts vector at address BX from vector at address BP. Destroys the value
-; of CX
+; Subtracts the component at address BX from the one at address BP. Destroys
+; the value of CX
 vector_sub:
     mov     cx, word es:[bx]
     sub     es:[bp], cx
-    mov     cx, word es:[bx + 2]
-    sub     es:[bp + 2], cx
-    mov     cx, word es:[bx + 4]
-    sub     es:[bp + 4], cx
     ret
 
 ;   vector_dot
-; Loads to DX:AX the dot product of vectors at addresses BX and BP. Destroys
-; the value of CX
+; Multiplies the component at address BX by the one at address BP, re-scaling
+; the result and shifting it by 8 bits. Adds the result to DX to perform vector
+; dot product with vector_op. Destroys the value of CX.
+;
+; The result is shifted to the right by 8 bits to prevent later
+; calculations from resulting in very large numbers (and thus saving the
+; need to deal with 32-bit multiplication)
 vector_dot:
+    push    ax
     mov     cx, word es:[bx]
     mov     ax, word es:[bp]
-    imul    cx
     push    dx
-    push    ax
-
-    mov     cx, word es:[bx + 2]
-    mov     ax, word es:[bp + 2]
     imul    cx
-    push    dx
-    push    ax
-
-    mov     cx, word es:[bx + 4]
-    mov     ax, word es:[bp + 4]
-    imul    cx
-    pop     cx
-    add     ax, cx
-    pop     cx
-    adc     dx, cx
-    pop     cx
-    add     ax, cx
-    pop     cx
-    adc     dx, cx
     call    rescale_dx_ax
+    mov     al, ah
+    mov     ah, dl
+    pop     dx
+    add     dx, ax
+    pop     ax
+    ret
+
+;   vector_sub
+; Calls the subroutine at address AX for each of the three components of the
+; vectors at addresses ES:BX and ES:BP. Destroys the values of BX, BP and DX
+vector_op:
+    xor     dx, dx
+    call    ax
+    add     bx, 2
+    add     bp, 2
+    call    ax
+    add     bx, 2
+    add     bp, 2
+    call    ax
     ret
 
 ;   rescale_dx_ax
