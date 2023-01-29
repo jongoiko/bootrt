@@ -33,7 +33,8 @@ FRAC_BITS:          equ     7
 ; at 0
 %define     VECTOR_ADDRESS(n)   (IMG_SIZE + n * VECTOR_SIZE)
 
-; Origin/Position of the camera
+; We assume the origin/position of the camera to be (0, 0, 0); changing these
+; macros has no effect
 CAMERA_X:           equ     0
 CAMERA_Y:           equ     0
 CAMERA_Z:           equ     0
@@ -75,15 +76,11 @@ start:
     mov     ax, VIDEO_MEM_SEGMENT
     mov     es, ax
 
-    ; Store origin and the sphere's center
-    store_vector 0, CAMERA_X, CAMERA_Y, CAMERA_Z
-    store_vector 2, SPHERE_CENTER_X, SPHERE_CENTER_Y, SPHERE_CENTER_Z
+    ; Store the sphere's center
+    store_vector 0, SPHERE_CENTER_X, SPHERE_CENTER_Y, SPHERE_CENTER_Z
 
-    ; Vector 2 <- OC: vector from the origin to the sphere's center
-    mov     ax, vector_sub
-    mov     bx, VECTOR_ADDRESS(0)
-    mov     bp, VECTOR_ADDRESS(2)
-    call    vector_op
+    ; OC: vector from the origin to the sphere's center (just vector 1 since
+    ; the camera is at (0, 0, 0))
 
     ; Row and column numbers are stored in fixed-point format and only
     ; converted to integers to calculate pixel addresses
@@ -121,21 +118,17 @@ loop_columns:
     imul    cx
     sub     es:[VECTOR_ADDRESS(1) + 2], ax
 
-    ; Subtract origin from resulting vector to obtain the ray's direction (b)
-    mov     ax, vector_sub
-    mov     bx, VECTOR_ADDRESS(0)
-    mov     bp, VECTOR_ADDRESS(1)
-    call    vector_op
+    ; The resulting vector is the ray's direction (b)
 
     ; Obtain color intersecting with the outgoing ray. The ray can be
     ; represented as
     ;   P(t) = Origin + t * Direction
-    ; The ray's origin is stored in vector 0 and its direction vector is stored
-    ; in vector 1
+    ; The ray's origin is the camera's position (0, 0, 0) and its direction
+    ; vector is stored in vector 1
 
     ; DX <- B = 2 * dot(OC, b)
     mov     ax, vector_dot
-    mov     bx, VECTOR_ADDRESS(2)
+    mov     bx, VECTOR_ADDRESS(0)
     mov     bp, VECTOR_ADDRESS(1)
     call    vector_op
     shl     dx, 1
@@ -150,7 +143,7 @@ loop_columns:
 
     ; DX <- C = dot(OC, OC) - radius^2
     mov     ax, vector_dot
-    mov     bx, VECTOR_ADDRESS(2)
+    mov     bx, VECTOR_ADDRESS(0)
     mov     bp, bx
     call    vector_op
     sub     dx, (SPHERE_RADIUS * SPHERE_RADIUS) >> (FRAC_BITS + 8)
