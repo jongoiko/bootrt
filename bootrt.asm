@@ -228,7 +228,7 @@ vector_dot:
     pop     ax
     ret
 
-;   vector_sub
+;   vector_op
 ; Calls the subroutine at address AX for each of the three components of the
 ; vectors at addresses ES:BX and ES:BP. Destroys the values of BX, BP and DX
 vector_op:
